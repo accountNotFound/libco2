@@ -1,6 +1,6 @@
 #include <string>
 
-#include "../include/cofunc/asyncf.hpp"
+#include "cofunc/asyncf.hpp"
 #include "stdio.h"
 
 co::Asyncf<int> bar(int n) {
@@ -31,10 +31,8 @@ co::Asyncf<void> biz() {
 
 void test_async() {
   auto e = biz();
-  e.start();
-  while (!e.done()) {
+  for (e.start(); !e.done(); e.resume()) {
     printf("main\n");
-    e.resume();
   }
   printf("async test end\n");
 }
