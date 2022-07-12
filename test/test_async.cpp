@@ -3,7 +3,7 @@
 #include "cofunc/asyncf.hpp"
 #include "stdio.h"
 
-co::Asyncf<int> bar(int n) {
+static co::Asyncf<int> bar(int n) {
   int res = 0;
   for (int i = 0; i < n; i++) {
     printf("   bar %d\n", i);
@@ -13,7 +13,7 @@ co::Asyncf<int> bar(int n) {
   co_return res;
 }
 
-co::Asyncf<std::string> foo(int n) {
+static co::Asyncf<std::string> foo(int n) {
   std::string res = "";
   for (int i = 0; i < n; i++) {
     printf("  foo %d\n", i);
@@ -22,7 +22,7 @@ co::Asyncf<std::string> foo(int n) {
   co_return res;
 }
 
-co::Asyncf<void> biz() {
+static co::Asyncf<void> biz() {
   printf("biz start\n");
   auto res = co_await foo(5);
   printf("\"%s\"\n", res.data());

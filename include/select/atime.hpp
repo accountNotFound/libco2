@@ -1,3 +1,5 @@
+#pragma once
+
 #include <ctime>
 #include <queue>
 #include <shared_mutex>
@@ -10,8 +12,16 @@ namespace co {
 
 namespace __detail {
 
-class Atime {
+class Atime : public Selector {
  public:
+  Atime() = default;
+  ~Atime() override;
+
+  Fd submit_sleep(unsigned long long milisecond);
+  std::vector<Fd> select() override;
+  bool check_ready(const Fd& fd) override;
+
+ private:
   struct TimedFd {
     Fd fd_;
     std::clock_t expired_time;
@@ -23,17 +33,10 @@ class Atime {
     };
   };
 
-  void submit_sleep(unsigned long long milisecond);
-  bool check_ready(const Fd& fd);
-  std::vector<Fd> select();
-
- private:
   std::shared_mutex self_;
   std::priority_queue<TimedFd, std::vector<TimedFd>, TimedFd::Greater>
       expired_queue_;
   std::unordered_set<Fd> fd_waitings_;
-
-  Fd random_create_();
 };
 
 }  // namespace __detail

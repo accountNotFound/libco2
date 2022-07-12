@@ -1,3 +1,5 @@
+#pragma once
+
 #include <memory>
 #include <shared_mutex>
 #include <stack>
@@ -17,9 +19,7 @@ class Async {
 
   Async(const Async& f) = delete;
   Async(Async&& f) : handler_(f.handler_) { f.handler_ = nullptr; }
-  virtual ~Async() {
-    if (handler_) handler_.destroy();
-  }
+  virtual ~Async();
 
  protected:
   using Handler = std::coroutine_handle<>;
