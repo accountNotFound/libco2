@@ -12,6 +12,9 @@ class Generator {
     }
   };
 
+  Generator(const Generator& g) = delete;
+  Generator(Generator&& g) : handler_(g.handler_) { g.handler_ = nullptr; }
+
   bool done() { return !handler_ || handler_.done(); }
   auto next() {
     if (!std::is_same<T, void>::value) {

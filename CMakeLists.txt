@@ -6,9 +6,10 @@ set(CMAKE_BUILD_TYPE "debug")
 
 project(libco2 VERSION 0.1.0)
 add_subdirectory("src/cofunc")
+add_subdirectory("src/select")
 add_subdirectory("test")
 add_executable(main main.cpp)
-target_link_libraries(main test cofunc)
+target_link_libraries(main test cofunc select)
 
 # include(CTest)
 # enable_testing()

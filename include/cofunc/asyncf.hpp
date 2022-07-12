@@ -24,14 +24,14 @@ class Async {
  protected:
   using Handler = std::coroutine_handle<>;
   using Pstack = std::shared_ptr<std::stack<Handler>>;
-  struct Hash {
+  struct HandlerHash {
     size_t operator()(const Handler& h) const {
       return reinterpret_cast<size_t>(h.address());
     }
   };
 
   static std::shared_mutex class_;
-  static std::unordered_map<Handler, Pstack, Hash> handler_stack_;
+  static std::unordered_map<Handler, Pstack, HandlerHash> handler_stack_;
 
   Handler handler_;
 
@@ -54,15 +54,16 @@ class Asyncf : public __detail::Async {
   void await_suspend(Handler caller) { suspend_(caller); }
   auto await_resume() {
     if (!std::is_same<T, void>::value) {
-      return std::move(promise_handler_.promise().value_);
+      return std::move(
+          std::coroutine_handle<promise_type>::from_address(handler_.address())
+              .promise()
+              .value_);
     }
   }
 
  private:
-  std::coroutine_handle<promise_type> promise_handler_;
-
   Asyncf(std::coroutine_handle<promise_type> handler)
-      : __detail::Async(handler), promise_handler_(handler) {}
+      : __detail::Async(handler) {}
 };
 
 }  // namespace co

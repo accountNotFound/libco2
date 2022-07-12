@@ -7,7 +7,7 @@ namespace co {
 namespace __detail {
 
 std::shared_mutex Async::class_;
-std::unordered_map<Async::Handler, Async::Pstack, Async::Hash>
+std::unordered_map<Async::Handler, Async::Pstack, Async::HandlerHash>
     Async::handler_stack_;
 
 void Async::start() {
