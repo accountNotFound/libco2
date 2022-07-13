@@ -8,7 +8,7 @@
 #include <unordered_set>
 
 #include "cofunc/asyncf.hpp"
-#include "select/atime.hpp"
+#include "select/timer.hpp"
 
 namespace co {
 
@@ -24,7 +24,7 @@ class Schedule {
     void await_suspend(std::coroutine_handle<> caller) {
       schedule_.suspend_awaiter_(*this);
     }
-    void await_resume(){};
+    void await_resume() {}
   };
 
   Schedule();
@@ -32,6 +32,7 @@ class Schedule {
 
   void submit_async(std::shared_ptr<__detail::Async>&& pfn);
   void event_loop(size_t thread_num = 1);
+  __detail::Selector* selector(__detail::Fd::Type type);
   FdAwaiter create_awaiter(const __detail::Fd& fd);
 
  private:

@@ -8,12 +8,16 @@ namespace co {
 Schedule default_schedule_;
 
 Schedule::Schedule() {
-  selectors_[__detail::Fd::Atime] = new __detail::Atime();
+  selectors_[__detail::Fd::Timer] = new __detail::Timer();
   /* more in future */
 }
 
 Schedule::~Schedule() {
   for (auto& [_, selector] : selectors_) delete selector;
+}
+
+__detail::Selector* Schedule::selector(__detail::Fd::Type type) {
+  return selectors_.at(type);
 }
 
 void Schedule::submit_async(std::shared_ptr<__detail::Async>&& pfn) {
@@ -41,8 +45,10 @@ void Schedule::loop_routine_() {
     fn_currents_[tid] = nullptr;
   }
   auto pick_ready = [this, tid]() {
-    fn_currents_[tid] = fn_readys_.front();
-    fn_readys_.pop();
+    if (!fn_readys_.empty()) {
+      fn_currents_[tid] = fn_readys_.front();
+      fn_readys_.pop();
+    }
   };
   while (true) {
     {
@@ -53,7 +59,7 @@ void Schedule::loop_routine_() {
         // may cause performance problem
         for (auto& [_, selector] : selectors_) {
           for (auto fd : selector->select()) {
-            auto pfn = fn_events_[fd];
+            auto pfn = fn_events_.at(fd);
             fn_events_.erase(fd);
             fn_waitings_.erase(pfn);
             fn_readys_.push(pfn);
@@ -88,7 +94,7 @@ Schedule::FdAwaiter Schedule::create_awaiter(const __detail::Fd& fd) {
 void Schedule::suspend_awaiter_(const FdAwaiter& awaiter) {
   Tid tid = std::this_thread::get_id();
   std::unique_lock lock(self_);
-  auto current = fn_currents_[tid];
+  auto current = fn_currents_.at(tid);
   fn_events_[awaiter.fd_] = current;
   fn_waitings_.insert(current);
 }

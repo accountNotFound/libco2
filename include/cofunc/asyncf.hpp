@@ -53,7 +53,7 @@ class Asyncf : public __detail::Async {
   bool await_ready() { return done(); }
   void await_suspend(Handler caller) { suspend_(caller); }
   auto await_resume() {
-    if (!std::is_same<T, void>::value) {
+    if constexpr (!std::is_same<T, void>::value) {
       return std::move(
           std::coroutine_handle<promise_type>::from_address(handler_.address())
               .promise()

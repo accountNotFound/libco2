@@ -1,4 +1,4 @@
-#include "select/atime.hpp"
+#include "select/timer.hpp"
 
 #include <mutex>
 #include <random>
@@ -7,9 +7,7 @@ namespace co {
 
 namespace __detail {
 
-Atime::~Atime() {}
-
-Fd Atime::submit_sleep(unsigned long long milisecond) {
+Fd Timer::submit_sleep(unsigned long long milisecond) {
   auto random_create = [this]() -> Fd {
     // called with lock
     // may cause performance problem
@@ -17,7 +15,7 @@ Fd Atime::submit_sleep(unsigned long long milisecond) {
     std::default_random_engine e;
     while (true) {
       auto r = e();
-      if (!fd_waitings_.count({r, Fd::Atime})) return {r, Fd::Atime};
+      if (!fd_waitings_.count({r, Fd::Timer})) return {r, Fd::Timer};
     }
   };
   std::unique_lock lock(self_);
@@ -27,7 +25,7 @@ Fd Atime::submit_sleep(unsigned long long milisecond) {
   return fd;
 }
 
-std::vector<Fd> Atime::select() {
+std::vector<Fd> Timer::select() {
   std::vector<Fd> res;
   {
     std::unique_lock lock(self_);
@@ -42,7 +40,7 @@ std::vector<Fd> Atime::select() {
   return res;
 }
 
-bool Atime::check_ready(const Fd& fd) {
+bool Timer::check_ready(const Fd& fd) {
   std::shared_lock lock(self_);
   return !fd_waitings_.count(fd);
 }

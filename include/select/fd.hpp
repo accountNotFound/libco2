@@ -7,7 +7,7 @@ namespace co {
 namespace __detail {
 
 struct Fd {
-  enum Type { Atime = 0, /* more in futre*/ };
+  enum Type { Timer = 0, /* more in futre*/ };
   size_t uid_;
   Type type_;
 

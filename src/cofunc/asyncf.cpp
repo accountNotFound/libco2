@@ -51,7 +51,7 @@ bool Async::done() { return !handler_ || handler_.done(); }
 void Async::suspend_(Handler caller) {
   std::unique_lock lock(class_);
   handler_stack_.at(caller)->push(handler_);
-  handler_stack_[handler_] = handler_stack_[caller];
+  handler_stack_[handler_] = handler_stack_.at(caller);
 }
 
 }  // namespace __detail

@@ -12,10 +12,10 @@ namespace co {
 
 namespace __detail {
 
-class Atime : public Selector {
+class Timer : public Selector {
  public:
-  Atime() = default;
-  ~Atime() override;
+  Timer() = default;
+  ~Timer() override = default;
 
   Fd submit_sleep(unsigned long long milisecond);
   std::vector<Fd> select() override;
