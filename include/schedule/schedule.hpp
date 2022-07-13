@@ -8,15 +8,18 @@
 #include <unordered_set>
 
 #include "cofunc/asyncf.hpp"
-#include "select/timer.hpp"
+#include "select/fd.hpp"
 
 namespace co {
 
 class Schedule {
  public:
-  struct FdAwaiter {
-    __detail::Fd fd_;
-    Schedule& schedule_;
+  class FdAwaiter {
+    friend class Schedule;
+
+   public:
+    FdAwaiter(__detail::Fd fd, Schedule& schedule)
+        : fd_(fd), schedule_(schedule) {}
 
     bool await_ready() {
       return schedule_.selectors_.at(fd_.type_)->check_ready(fd_);
@@ -25,6 +28,10 @@ class Schedule {
       schedule_.suspend_awaiter_(*this);
     }
     void await_resume() {}
+
+   private:
+    __detail::Fd fd_;
+    Schedule& schedule_;
   };
 
   Schedule();
@@ -32,7 +39,7 @@ class Schedule {
 
   void submit_async(std::shared_ptr<__detail::Async>&& pfn);
   void event_loop(size_t thread_num = 1);
-  __detail::Selector* selector(__detail::Fd::Type type);
+  __detail::Selector* selector(__detail::Fd::Ftype type);
   FdAwaiter create_awaiter(const __detail::Fd& fd);
 
  private:
@@ -44,7 +51,7 @@ class Schedule {
   std::queue<Pasync> fn_readys_;
   std::unordered_set<Pasync> fn_waitings_;
   std::unordered_map<__detail::Fd, Pasync> fn_events_;
-  std::unordered_map<__detail::Fd::Type, __detail::Selector*> selectors_;
+  std::unordered_map<__detail::Fd::Ftype, __detail::Selector*> selectors_;
 
   void loop_routine_();
   void suspend_awaiter_(const FdAwaiter& awaiter);

@@ -3,12 +3,16 @@
 #include <functional>
 #include <mutex>
 
+#include "select/mutex.hpp"
+#include "select/timer.hpp"
+
 namespace co {
 
 Schedule default_schedule_;
 
 Schedule::Schedule() {
-  selectors_[__detail::Fd::Timer] = new __detail::Timer();
+  selectors_[__detail::Fd::Ftimer] = new __detail::TimerSelector();
+  selectors_[__detail::Fd::Fmutex] = new __detail::MutexSelector();
   /* more in future */
 }
 
@@ -16,7 +20,7 @@ Schedule::~Schedule() {
   for (auto& [_, selector] : selectors_) delete selector;
 }
 
-__detail::Selector* Schedule::selector(__detail::Fd::Type type) {
+__detail::Selector* Schedule::selector(__detail::Fd::Ftype type) {
   return selectors_.at(type);
 }
 
@@ -88,7 +92,7 @@ void Schedule::loop_routine_() {
 }
 
 Schedule::FdAwaiter Schedule::create_awaiter(const __detail::Fd& fd) {
-  return FdAwaiter{fd, *this};
+  return FdAwaiter(fd, *this);
 }
 
 void Schedule::suspend_awaiter_(const FdAwaiter& awaiter) {

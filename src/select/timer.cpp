@@ -7,30 +7,33 @@ namespace co {
 
 namespace __detail {
 
-Fd Timer::submit_sleep(unsigned long long milisecond) {
-  auto random_create = [this]() -> Fd {
-    // called with lock
-    // may cause performance problem
-    // default randome engine ranges in size_t32
-    std::default_random_engine e;
-    while (true) {
-      auto r = e();
-      if (!fd_waitings_.count({r, Fd::Timer})) return {r, Fd::Timer};
+TimerSelector::Timer TimerSelector::create_timer(
+    unsigned long long milisecond) {
+  // may cause performance problem
+  // default randome engine ranges in size_t32
+  std::default_random_engine e;
+  while (true) {
+    Fd fd(e(), Fd::Ftimer);
+    std::unique_lock lock(self_);
+    if (!fd_waitings_.count(fd)) {
+      fd_waitings_.insert(fd);
+      return Timer(fd, std::clock() + milisecond);
     }
-  };
-  std::unique_lock lock(self_);
-  auto fd = random_create();
-  fd_waitings_.insert(fd);
-  expired_queue_.emplace(fd, std::clock() + milisecond);
-  return fd;
+  }
 }
 
-std::vector<Fd> Timer::select() {
+Fd TimerSelector::submit_sleep(const TimerSelector::Timer& timer) {
+  std::unique_lock lock(self_);
+  expired_queue_.emplace(timer);
+  return timer.fd_;
+}
+
+std::vector<Fd> TimerSelector::select() {
   std::vector<Fd> res;
   {
     std::unique_lock lock(self_);
     while (!expired_queue_.empty() &&
-           std::clock() >= expired_queue_.top().expired_time) {
+           std::clock() >= expired_queue_.top().expired_time_) {
       auto fd = expired_queue_.top().fd_;
       expired_queue_.pop();
       fd_waitings_.erase(fd);
@@ -40,7 +43,7 @@ std::vector<Fd> Timer::select() {
   return res;
 }
 
-bool Timer::check_ready(const Fd& fd) {
+bool TimerSelector::check_ready(const Fd& fd) {
   std::shared_lock lock(self_);
   return !fd_waitings_.count(fd);
 }

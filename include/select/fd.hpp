@@ -7,9 +7,14 @@ namespace co {
 namespace __detail {
 
 struct Fd {
-  enum Type { Timer = 0, /* more in futre*/ };
+  enum Ftype {
+    Fdefault = 0,  // use as simple uid
+    Ftimer,        // timer event fd
+    Fmutex,        // mutex lock event fd
+    // more in futre
+  };
   size_t uid_;
-  Type type_;
+  Ftype type_;
 
   bool operator==(const Fd& rhs) const {
     return uid_ == rhs.uid_ && type_ == rhs.type_;
