@@ -3,7 +3,7 @@
 namespace co {
 
 Asyncf<void> sleep(unsigned long long milisecond) {
-  auto scheduler = __detail::Scheduler::this_thread_scheduler();
+  auto scheduler = co::this_scheduler();
   auto time_selector = dynamic_cast<__detail::TimerSelector*>(
       scheduler->selector(__detail::Selector::Fd::Ftimer));
   auto timer = time_selector->create_timer(milisecond);

@@ -40,7 +40,7 @@ class TimerSelector : public Selector {
   Timer create_timer(unsigned long long milisecond);
   Fd submit_sleep(const Timer& timer);
 
-  std::vector<Fd> select() override;
+  Generator<Fd> select() override;
   bool check_ready(const Fd& fd) override;
 
  private:

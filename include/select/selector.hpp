@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vector>
+#include "cofunc/generator.hpp"
 
 namespace co {
 
@@ -35,7 +35,7 @@ class Selector {
   };
 
   virtual ~Selector() = default;
-  virtual std::vector<Fd> select() = 0;
+  virtual Generator<Fd> select() = 0;
   virtual bool check_ready(const Fd& fd) = 0;
 
  protected:

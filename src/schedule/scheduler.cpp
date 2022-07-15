@@ -57,38 +57,25 @@ void Scheduler::loop_routine_() {
     std::unique_lock lock(self_);
     fn_currents_[tid] = nullptr;
   }
-  loop_body_(tid);
-  {
-    std::unique_lock lock(class_);
-    schedulers_.erase(tid);
-  }
-}
-
-void Scheduler::loop_body_(std::thread::id tid) {
-  auto pick_ready = [this, tid]() {
-    if (!fn_readys_.empty()) {
-      fn_currents_[tid] = fn_readys_.front();
-      fn_readys_.pop();
-    }
-  };
   while (true) {
     {
       std::unique_lock lock(self_);
-      if (!fn_readys_.empty()) {
-        pick_ready();
-      } else if (!fn_waitings_.empty()) {
+      if (fn_readys_.empty() && !fn_waitings_.empty()) {
         // may cause performance problem
         for (auto& [_, selector] : selectors_) {
-          for (auto fd : selector->select()) {
+          selector->select().for_each([this](Selector::Fd fd) {
             auto pfn = fn_events_.at(fd);
             fn_events_.erase(fd);
             fn_waitings_.erase(pfn);
             fn_readys_.push(pfn);
-          }
+          });
         }
-        pick_ready();
-      } else {
-        return;
+      }
+      if (!fn_readys_.empty()) {
+        fn_currents_[tid] = fn_readys_.front();
+        fn_readys_.pop();
+      } else if (fn_waitings_.empty()) {
+        break;
       }
     }
     auto current = fn_currents_[tid];
@@ -105,6 +92,10 @@ void Scheduler::loop_body_(std::thread::id tid) {
       std::this_thread::yield();
       // or sleep
     }
+  }
+  {
+    std::unique_lock lock(class_);
+    schedulers_.erase(tid);
   }
 }
 

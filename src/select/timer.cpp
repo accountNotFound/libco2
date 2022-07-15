@@ -28,19 +28,17 @@ Selector::Fd TimerSelector::submit_sleep(const TimerSelector::Timer& timer) {
   return timer.fd_;
 }
 
-std::vector<Selector::Fd> TimerSelector::select() {
-  std::vector<Fd> res;
-  {
-    std::unique_lock lock(self_);
-    while (!expired_queue_.empty() &&
-           std::clock() >= expired_queue_.top().expired_time_) {
-      auto fd = expired_queue_.top().fd_;
-      expired_queue_.pop();
-      fd_waitings_.erase(fd);
-      res.push_back(fd);
-    }
+Generator<Selector::Fd> TimerSelector::select() {
+  std::unique_lock lock(self_);
+  while (!expired_queue_.empty() &&
+         std::clock() >= expired_queue_.top().expired_time_) {
+    auto fd = expired_queue_.top().fd_;
+    expired_queue_.pop();
+    fd_waitings_.erase(fd);
+    lock.unlock();
+    co_yield fd;
+    lock.lock();
   }
-  return res;
 }
 
 bool TimerSelector::check_ready(const Fd& fd) {

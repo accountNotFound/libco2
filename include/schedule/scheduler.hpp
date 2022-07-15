@@ -41,16 +41,13 @@ class Scheduler {
 
   void submit_async(std::shared_ptr<Async>&& pfn);
   void event_loop(size_t thread_num = 1);
-  Selector* selector(Selector::Fd::Ftype type);
   FdAwaiter create_awaiter(const Selector::Fd& fd);
+  Selector* selector(Selector::Fd::Ftype type);
 
-  static Scheduler* this_thread_scheduler() {
+  static Scheduler* this_scheduler() {
     std::shared_lock lock(class_);
     return schedulers_.at(std::this_thread::get_id());
   }
-
- protected:
-  virtual void loop_body_(std::thread::id tid);
 
  private:
   using Tid = std::thread::id;
@@ -84,6 +81,10 @@ inline void go(Asyncf<T>&& fn,
 inline void event_loop(size_t thread_num = 1,
                        __detail::Scheduler& scheduler = default_scheduler_) {
   scheduler.event_loop(thread_num);
+}
+
+inline __detail::Scheduler* this_scheduler() {
+  return __detail::Scheduler::this_scheduler();
 }
 
 }  // namespace co
