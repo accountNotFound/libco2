@@ -1,36 +1,41 @@
-#include "schedule/schedule.hpp"
+#include "schedule/scheduler.hpp"
 
 #include <functional>
 #include <mutex>
 
-#include "select/mutex.hpp"
+// #include "select/mutex.hpp"
 #include "select/timer.hpp"
 
 namespace co {
 
-Schedule default_schedule_;
+__detail::Scheduler default_scheduler_;
 
-Schedule::Schedule() {
-  selectors_[__detail::Fd::Ftimer] = new __detail::TimerSelector();
-  selectors_[__detail::Fd::Fmutex] = new __detail::MutexSelector();
+namespace __detail {
+
+std::shared_mutex Scheduler::class_;
+std::unordered_map<Scheduler::Tid, Scheduler*> Scheduler::schedulers_;
+
+Scheduler::Scheduler() {
+  selectors_[Selector::Fd::Ftimer] = new TimerSelector();
+  // selectors_[Selector::Fd::Fmutex] = new MutexSelector();
   /* more in future */
 }
 
-Schedule::~Schedule() {
+Scheduler::~Scheduler() {
   for (auto& [_, selector] : selectors_) delete selector;
 }
 
-__detail::Selector* Schedule::selector(__detail::Fd::Ftype type) {
+Selector* Scheduler::selector(Selector::Fd::Ftype type) {
   return selectors_.at(type);
 }
 
-void Schedule::submit_async(std::shared_ptr<__detail::Async>&& pfn) {
+void Scheduler::submit_async(std::shared_ptr<Async>&& pfn) {
   pfn->start();
   std::unique_lock lock(self_);
   fn_readys_.push(pfn);
 }
 
-void Schedule::event_loop(size_t thread_num) {
+void Scheduler::event_loop(size_t thread_num) {
   if (thread_num == 1) {
     loop_routine_();
   } else {
@@ -42,12 +47,24 @@ void Schedule::event_loop(size_t thread_num) {
   }
 }
 
-void Schedule::loop_routine_() {
+void Scheduler::loop_routine_() {
   Tid tid = std::this_thread::get_id();
+  {
+    std::unique_lock lock(class_);
+    schedulers_[tid] = this;
+  }
   {
     std::unique_lock lock(self_);
     fn_currents_[tid] = nullptr;
   }
+  loop_body_(tid);
+  {
+    std::unique_lock lock(class_);
+    schedulers_.erase(tid);
+  }
+}
+
+void Scheduler::loop_body_(std::thread::id tid) {
   auto pick_ready = [this, tid]() {
     if (!fn_readys_.empty()) {
       fn_currents_[tid] = fn_readys_.front();
@@ -91,16 +108,18 @@ void Schedule::loop_routine_() {
   }
 }
 
-Schedule::FdAwaiter Schedule::create_awaiter(const __detail::Fd& fd) {
+Scheduler::FdAwaiter Scheduler::create_awaiter(const Selector::Fd& fd) {
   return FdAwaiter(fd, *this);
 }
 
-void Schedule::suspend_awaiter_(const FdAwaiter& awaiter) {
+void Scheduler::suspend_awaiter_(const FdAwaiter& awaiter) {
   Tid tid = std::this_thread::get_id();
   std::unique_lock lock(self_);
   auto current = fn_currents_.at(tid);
   fn_events_[awaiter.fd_] = current;
   fn_waitings_.insert(current);
 }
+
+}  // namespace __detail
 
 }  // namespace co

@@ -1,5 +1,4 @@
 #include "api/timer.hpp"
-#include "schedule/schedule.hpp"
 #include "stdio.h"
 
 static co::Asyncf<void> foo(int id, int n, int milisecond) {

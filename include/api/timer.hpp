@@ -1,10 +1,9 @@
 #include "cofunc/asyncf.hpp"
-#include "schedule/schedule.hpp"
+#include "schedule/scheduler.hpp"
 #include "select/timer.hpp"
 
 namespace co {
 
-Asyncf<void> sleep(unsigned long long milisecond,
-                   Schedule& schedule = default_schedule_);
+Asyncf<void> sleep(unsigned long long milisecond);
 
 }  // namespace co

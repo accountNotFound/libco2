@@ -1,5 +1,5 @@
 #include "cofunc/asyncf.hpp"
-#include "schedule/schedule.hpp"
+#include "schedule/scheduler.hpp"
 #include "stdio.h"
 
 static co::Asyncf<int> bar(int n) {

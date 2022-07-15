@@ -13,7 +13,7 @@ TimerSelector::Timer TimerSelector::create_timer(
   // default randome engine ranges in size_t32
   std::default_random_engine e;
   while (true) {
-    Fd fd(e(), Fd::Ftimer);
+    auto fd = create_fd(e(), Fd::Ftimer);
     std::unique_lock lock(self_);
     if (!fd_waitings_.count(fd)) {
       fd_waitings_.insert(fd);
@@ -22,13 +22,13 @@ TimerSelector::Timer TimerSelector::create_timer(
   }
 }
 
-Fd TimerSelector::submit_sleep(const TimerSelector::Timer& timer) {
+Selector::Fd TimerSelector::submit_sleep(const TimerSelector::Timer& timer) {
   std::unique_lock lock(self_);
   expired_queue_.emplace(timer);
   return timer.fd_;
 }
 
-std::vector<Fd> TimerSelector::select() {
+std::vector<Selector::Fd> TimerSelector::select() {
   std::vector<Fd> res;
   {
     std::unique_lock lock(self_);
