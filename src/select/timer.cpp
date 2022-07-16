@@ -1,7 +1,8 @@
 #include "select/timer.hpp"
 
 #include <mutex>
-#include <random>
+
+#include "util/random.hpp"
 
 namespace co {
 
@@ -9,11 +10,8 @@ namespace __detail {
 
 TimerSelector::Timer TimerSelector::create_timer(
     unsigned long long milisecond) {
-  // may cause performance problem
-  // default randome engine ranges in size_t32
-  std::default_random_engine e;
   while (true) {
-    auto fd = create_fd(e(), Fd::Ftimer);
+    auto fd = create_fd(random(), Fd::Ftimer);
     std::unique_lock lock(self_);
     if (!fd_waitings_.count(fd)) {
       fd_waitings_.insert(fd);

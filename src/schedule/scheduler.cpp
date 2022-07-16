@@ -33,6 +33,7 @@ Scheduler::~Scheduler() {
 }
 
 Selector* Scheduler::selector(Selector::Fd::Ftype type) {
+  // no need to lock self
   return selectors_.at(type);
 }
 
