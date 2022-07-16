@@ -36,6 +36,8 @@ class Scheduler {
     Scheduler& scheduler_;
   };
 
+  static Scheduler* this_scheduler();
+
   Scheduler();
   virtual ~Scheduler();
 
@@ -43,11 +45,6 @@ class Scheduler {
   void event_loop(size_t thread_num = 1);
   FdAwaiter create_awaiter(const Selector::Fd& fd);
   Selector* selector(Selector::Fd::Ftype type);
-
-  static Scheduler* this_scheduler() {
-    std::shared_lock lock(class_);
-    return schedulers_.at(std::this_thread::get_id());
-  }
 
  private:
   using Tid = std::thread::id;
@@ -73,9 +70,9 @@ extern __detail::Scheduler default_scheduler_;
 
 template <typename T>
 inline void go(Asyncf<T>&& fn,
-               __detail::Scheduler& schedule = default_scheduler_) {
+               __detail::Scheduler& scheduler = default_scheduler_) {
   auto pfn = std::make_shared<__detail::Async>(std::move(fn));
-  schedule.submit_async(std::move(pfn));
+  scheduler.submit_async(std::move(pfn));
 }
 
 inline void event_loop(size_t thread_num = 1,

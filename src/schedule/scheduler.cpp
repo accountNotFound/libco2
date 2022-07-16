@@ -3,7 +3,7 @@
 #include <functional>
 #include <mutex>
 
-// #include "select/mutex.hpp"
+#include "select/mutex.hpp"
 #include "select/timer.hpp"
 
 namespace co {
@@ -15,9 +15,16 @@ namespace __detail {
 std::shared_mutex Scheduler::class_;
 std::unordered_map<Scheduler::Tid, Scheduler*> Scheduler::schedulers_;
 
+Scheduler* Scheduler::this_scheduler() {
+  auto tid = std::this_thread::get_id();
+  std::unique_lock lock(class_);
+  if (schedulers_.count(tid)) return schedulers_.at(tid);
+  return &default_scheduler_;
+}
+
 Scheduler::Scheduler() {
   selectors_[Selector::Fd::Ftimer] = new TimerSelector();
-  // selectors_[Selector::Fd::Fmutex] = new MutexSelector();
+  selectors_[Selector::Fd::Fmutex] = new MutexSelector();
   /* more in future */
 }
 
@@ -36,15 +43,11 @@ void Scheduler::submit_async(std::shared_ptr<Async>&& pfn) {
 }
 
 void Scheduler::event_loop(size_t thread_num) {
-  if (thread_num == 1) {
-    loop_routine_();
-  } else {
-    auto workers = new std::thread[thread_num];
-    for (int i = 0; i < thread_num; i++) {
-      workers[i] = std::thread([this]() { loop_routine_(); });
-    }
-    for (int i = 0; i < thread_num; i++) workers[i].join();
-  }
+  std::vector<std::thread> fork_workers(thread_num - 1);
+  for (int i = 0; i < thread_num - 1; i++)
+    fork_workers[i] = std::thread([this]() { loop_routine_(); });
+  loop_routine_();
+  for (int i = 0; i < thread_num - 1; i++) fork_workers[i].join();
 }
 
 void Scheduler::loop_routine_() {
