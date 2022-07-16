@@ -9,6 +9,7 @@ Asyncf<void> sleep(unsigned long long milisecond) {
   auto timer = time_selector->create_timer(milisecond);
   auto fd = time_selector->submit_sleep(timer);
   co_await scheduler->create_awaiter(fd);
+  time_selector->destroy_timer(timer);
 }
 
 }  // namespace co

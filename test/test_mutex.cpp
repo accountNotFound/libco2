@@ -13,7 +13,7 @@ static co::Asyncf<void> foo(int id, int n) {
   for (int i = 0; i < n; i++) {
     printf("thread(%d) foo(%d)->%d\n", std::this_thread::get_id(), id, i);
     co_await mtx.lock();
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    // std::this_thread::sleep_for(std::chrono::milliseconds(100));
     value++;
     mtx.unlock();
   }

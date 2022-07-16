@@ -18,6 +18,7 @@ class Selector {
       Fmutex,        // mutex lock event fd
       // more in futre
     };
+    enum Fstatus { Fwaiting = 0, Fready };
 
     Fd() = default;
     Fd(const Fd& fd) : uid_(fd.uid_), type_(fd.type_) {}
@@ -39,7 +40,7 @@ class Selector {
   virtual bool check_ready(const Fd& fd) = 0;
 
  protected:
-  Fd create_fd(size_t uid, Fd::Ftype type) { return Fd(uid, type); }
+  Fd create_fd_(size_t uid, Fd::Ftype type) { return Fd(uid, type); }
 };
 
 }  // namespace __detail

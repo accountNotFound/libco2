@@ -11,7 +11,7 @@ namespace __detail {
 
 MutexSelector::Mutex MutexSelector::create_mutex() {
   while (true) {
-    Mutex mtx(create_fd(random(), Fd::Fdefault));
+    Mutex mtx(create_fd_(random(), Fd::Fdefault));
     std::unique_lock lock(self_);
     if (!mtx_queue_.count(mtx)) {
       mtx_queue_[mtx] = {};
@@ -27,10 +27,10 @@ void MutexSelector::destroy_mutex(Mutex& mtx) {
 
 Selector::Fd MutexSelector::submit_lock(Mutex& mtx) {
   while (true) {
-    Fd fd = create_fd(random(), Fd::Fmutex);
+    Fd fd = create_fd_(random(), Fd::Fmutex);
     std::unique_lock lock(self_);
-    if (!fd_using_.count(fd)) {
-      fd_using_[fd] = mtx;
+    if (!fd_usings_.count(fd)) {
+      fd_usings_[fd] = mtx;
       mtx_queue_[mtx].push(fd);
       return fd;
     }
@@ -40,17 +40,17 @@ Selector::Fd MutexSelector::submit_lock(Mutex& mtx) {
 void MutexSelector::submit_unlock(Mutex& mtx) {
   std::unique_lock lock(self_);
   auto fd = mtx_queue_.at(mtx).front();
-  fd_using_.erase(fd);
+  fd_usings_.erase(fd);
   mtx_queue_.at(mtx).pop();
 }
 
 bool MutexSelector::submit_try_lock(Mutex& mtx) {
   while (true) {
-    Fd fd = create_fd(random(), Fd::Fmutex);
+    Fd fd = create_fd_(random(), Fd::Fmutex);
     std::unique_lock lock(self_);
-    if (!fd_using_.count(fd)) {
+    if (!fd_usings_.count(fd)) {
       if (mtx_queue_[mtx].empty()) {
-        fd_using_[fd] = mtx;
+        fd_usings_[fd] = mtx;
         mtx_queue_[mtx].push(fd);
         return true;
       } else {
@@ -65,7 +65,6 @@ Generator<Selector::Fd> MutexSelector::select() {
   for (auto& [_, que] : mtx_queue_) {
     if (!que.empty()) {
       Fd fd = que.front();
-      fd_using_.erase(fd);
       lock.unlock();
       co_yield fd;
       lock.lock();
@@ -75,8 +74,8 @@ Generator<Selector::Fd> MutexSelector::select() {
 
 bool MutexSelector::check_ready(const Fd& fd) {
   std::shared_lock lock(self_);
-  if (!fd_using_.count(fd)) throw std::out_of_range("invalid lock fd");
-  Mutex& mtx = fd_using_.at(fd);
+  if (!fd_usings_.count(fd)) throw std::out_of_range("invalid lock fd");
+  Mutex& mtx = fd_usings_.at(fd);
   return mtx_queue_.at(mtx).front() == fd;
 }
 

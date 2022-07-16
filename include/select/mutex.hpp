@@ -47,7 +47,7 @@ class MutexSelector : public Selector {
  private:
   std::shared_mutex self_;
   std::unordered_map<Mutex, std::queue<Fd>, Mutex::Hash> mtx_queue_;
-  std::unordered_map<Fd, Mutex> fd_using_;
+  std::unordered_map<Fd, Mutex> fd_usings_;
 };
 
 }  // namespace __detail

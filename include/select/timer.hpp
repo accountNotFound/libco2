@@ -39,6 +39,7 @@ class TimerSelector : public Selector {
 
   Timer create_timer(unsigned long long milisecond);
   Fd submit_sleep(const Timer& timer);
+  void destroy_timer(Timer& timer);
 
   Generator<Fd> select() override;
   bool check_ready(const Fd& fd) override;
@@ -46,7 +47,7 @@ class TimerSelector : public Selector {
  private:
   std::shared_mutex self_;
   std::priority_queue<Timer, std::vector<Timer>, Timer::Greater> expired_queue_;
-  std::unordered_set<Fd> fd_waitings_;
+  std::unordered_map<Fd, Fd::Fstatus> fd_status_;
 };
 
 }  // namespace __detail
