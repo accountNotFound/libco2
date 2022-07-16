@@ -1,10 +1,21 @@
 #include "schedule/scheduler.hpp"
 
+#include <chrono>
 #include <functional>
 #include <mutex>
 
 #include "select/mutex.hpp"
 #include "select/timer.hpp"
+
+// #define __DEBUG_PRINT__
+
+#ifdef __DEBUG_PRINT__
+#ifndef DEBUB
+#define DEBUG(format, ...) printf(format, __VA_ARGS__)
+#endif
+#else
+#define DEBUG
+#endif
 
 namespace co {
 
@@ -17,7 +28,7 @@ std::unordered_map<Scheduler::Tid, Scheduler*> Scheduler::schedulers_;
 
 Scheduler* Scheduler::this_scheduler() {
   auto tid = std::this_thread::get_id();
-  std::unique_lock lock(class_);
+  std::shared_lock lock(class_);
   if (schedulers_.count(tid)) return schedulers_.at(tid);
   return &default_scheduler_;
 }
@@ -53,6 +64,7 @@ void Scheduler::event_loop(size_t thread_num) {
 
 void Scheduler::loop_routine_() {
   Tid tid = std::this_thread::get_id();
+  DEBUG("thread(%d) start\n", tid);
   {
     std::unique_lock lock(class_);
     schedulers_[tid] = this;
@@ -68,10 +80,12 @@ void Scheduler::loop_routine_() {
         // may cause performance problem
         for (auto& [_, selector] : selectors_) {
           selector->select().for_each([this](Selector::Fd fd) {
-            auto pfn = fn_events_.at(fd);
-            fn_events_.erase(fd);
-            fn_waitings_.erase(pfn);
-            fn_readys_.push(pfn);
+            if (fn_events_.count(fd)) {
+              auto pfn = fn_events_.at(fd);
+              fn_events_.erase(fd);
+              fn_waitings_.erase(pfn);
+              fn_readys_.push(pfn);
+            }
           });
         }
       }
@@ -82,37 +96,53 @@ void Scheduler::loop_routine_() {
         break;
       }
     }
-    auto current = fn_currents_[tid];
+    auto current = fn_currents_.at(tid);
     if (current) {
       current->resume();
-      {
-        std::unique_lock lock(self_);
-        if (!current->done() && !fn_waitings_.count(current))
-          fn_readys_.push(current);
-      }
+      std::unique_lock lock(self_);
+      if (!current->done() && !fn_waitings_.count(current))
+        fn_readys_.push(current);
       fn_currents_[tid] = nullptr;
     } else {
-      // may cause performance problem
-      std::this_thread::yield();
-      // or sleep
+      // do not yield
+      // yield cause wired randomly dead loop
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
   }
   {
     std::unique_lock lock(class_);
     schedulers_.erase(tid);
   }
+  DEBUG("thread(%d) end\n", tid);
 }
 
 Scheduler::FdAwaiter Scheduler::create_awaiter(const Selector::Fd& fd) {
   return FdAwaiter(fd, *this);
 }
 
-void Scheduler::suspend_awaiter_(const FdAwaiter& awaiter) {
+bool Scheduler::FdAwaiter::await_ready() {
+  scheduler_.self_.lock();
+  await_ready_ = scheduler_.selectors_.at(fd_.type())->check_ready(fd_);
+  return await_ready_;
+}
+
+void Scheduler::FdAwaiter::await_suspend(std::coroutine_handle<>) {
+  // already locked in await_ready
   Tid tid = std::this_thread::get_id();
-  std::unique_lock lock(self_);
-  auto current = fn_currents_.at(tid);
-  fn_events_[awaiter.fd_] = current;
-  fn_waitings_.insert(current);
+  auto current = scheduler_.fn_currents_.at(tid);
+  scheduler_.fn_events_[fd_] = current;
+  scheduler_.fn_waitings_.insert(current);
+  await_ready_ = false;
+  scheduler_.self_.unlock();
+}
+
+void Scheduler::FdAwaiter::await_resume() {
+  if (await_ready_) {
+    // already locked in await_ready
+    await_ready_ = false;
+    scheduler_.self_.unlock();
+  }
+  // else: unlock in await_resume
 }
 
 }  // namespace __detail

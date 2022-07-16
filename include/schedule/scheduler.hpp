@@ -1,8 +1,8 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <queue>
-#include <shared_mutex>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
@@ -23,17 +23,14 @@ class Scheduler {
     FdAwaiter(const Selector::Fd& fd, Scheduler& scheduler)
         : fd_(fd), scheduler_(scheduler) {}
 
-    bool await_ready() {
-      return scheduler_.selectors_.at(fd_.type())->check_ready(fd_);
-    }
-    void await_suspend(std::coroutine_handle<> caller) {
-      scheduler_.suspend_awaiter_(*this);
-    }
-    void await_resume() {}
+    bool await_ready();
+    void await_suspend(std::coroutine_handle<>);
+    void await_resume();
 
    private:
     Selector::Fd fd_;
     Scheduler& scheduler_;
+    bool await_ready_ = false;  // used for scheduler unlock in awaiter
   };
 
   static Scheduler* this_scheduler();
@@ -53,7 +50,7 @@ class Scheduler {
   static std::shared_mutex class_;
   static std::unordered_map<Tid, Scheduler*> schedulers_;
 
-  std::shared_mutex self_;
+  std::mutex self_;
   std::unordered_map<Tid, Pasync> fn_currents_;
   std::queue<Pasync> fn_readys_;
   std::unordered_set<Pasync> fn_waitings_;
@@ -61,7 +58,6 @@ class Scheduler {
   std::unordered_map<Selector::Fd::Ftype, Selector*> selectors_;
 
   void loop_routine_();
-  void suspend_awaiter_(const FdAwaiter& awaiter);
 };
 
 }  // namespace __detail

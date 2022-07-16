@@ -7,6 +7,17 @@
 
 namespace co {
 
+class StopIteration : public std::exception {
+ public:
+  StopIteration() = default;
+  StopIteration(const char* msg) : msg_(msg) {}
+  StopIteration(const StopIteration& e) = default;
+  const char* what() const throw() { return msg_ ? msg_ : "stop iteration"; }
+
+ private:
+  const char* msg_ = nullptr;
+};
+
 template <typename T>
 concept NotVoid = !std::is_same<T, void>::value;
 
@@ -26,7 +37,7 @@ class Generator {
   bool done() { return !handler_ || handler_.done(); }
   NotVoid next() {
     if (!done()) handler_.resume();
-    if (!handler_.promise().valid_) throw std::out_of_range("stop iteration");
+    if (!handler_.promise().valid_) throw StopIteration();
     handler_.promise().valid_ = false;
     return std::move(handler_.promise().value_);
   }
@@ -34,7 +45,7 @@ class Generator {
   void for_each(std::function<void(NotVoid&&)> func) {
     try {
       while (!done()) func(next());
-    } catch (const std::out_of_range& e) {
+    } catch (const StopIteration& e) {
       ;
     }
   }
