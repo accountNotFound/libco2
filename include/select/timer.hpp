@@ -14,40 +14,49 @@ namespace __detail {
 
 class TimerSelector : public Selector {
  public:
-  class Timer {
+  class TimedFd : public Fd {
     friend class TimerSelector;
 
    public:
+    enum Status { Waiting = 0, Ready };
+
+    TimedFd() = default;
+    TimedFd(const TimedFd&) = default;
+    ~TimedFd() = default;
+
+    bool ready() const override;
+    void submit_read() const override;
+
     struct Greater {
-      bool operator()(const Timer& a, const Timer& b) const {
+      bool operator()(const TimedFd& a, const TimedFd& b) const {
         return a.expired_time_ > b.expired_time_;
       }
     };
 
-    Timer() = default;
-    Timer(Fd fd, std::clock_t expired_time)
-        : fd_(fd), expired_time_(expired_time) {}
-    ~Timer() = default;
-
    private:
-    Fd fd_;
     std::clock_t expired_time_;
+    TimerSelector* selector_;
+
+    TimedFd(size_t uid, std::clock_t expired_time, TimerSelector* selector)
+        : Fd(uid, Fd::Ftimer),
+          expired_time_(expired_time),
+          selector_(selector) {}
   };
 
   TimerSelector() = default;
-  ~TimerSelector() override = default;
+  TimerSelector(const TimerSelector&) = delete;
+  ~TimerSelector() = default;
 
-  Timer create_timer(unsigned long long milisecond);
-  Fd submit_sleep(const Timer& timer);
-  void destroy_timer(Timer& timer);
+  Generator<const Fd*> select() override;
 
-  Generator<Fd> select() override;
-  bool check_ready(const Fd& fd) override;
+  const TimedFd* create_fd(unsigned long long milliseconds);
+  void destroy_fd(const Fd* fd) override;
 
  private:
   std::shared_mutex self_;
-  std::priority_queue<Timer, std::vector<Timer>, Timer::Greater> expired_queue_;
-  std::unordered_map<Fd, Fd::Fstatus> fd_status_;
+  std::priority_queue<TimedFd, std::vector<TimedFd>, TimedFd::Greater>
+      expired_queue_;
+  std::unordered_map<TimedFd, TimedFd::Status, TimedFd::Hash> fd_status_;
 };
 
 }  // namespace __detail

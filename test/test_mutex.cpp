@@ -26,6 +26,6 @@ void test_mutex() {
   for (int i = 0; i < 500; i++) {
     co::go(foo(i, 100));
   }
-  co::event_loop(3);
+  co::event_loop(6);
   printf("value=%d\n", value);
 }

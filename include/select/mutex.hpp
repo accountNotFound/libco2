@@ -11,43 +11,45 @@ namespace __detail {
 
 class MutexSelector : public Selector {
  public:
-  class Mutex {
+  using Mutex = size_t;
+
+  class MutexFd : public Fd {
     friend class MutexSelector;
 
    public:
-    Mutex() = default;
-    Mutex(Fd fd) : mutex_id_(fd) {}
-    ~Mutex() = default;
+    MutexFd() = default;
+    MutexFd(const MutexFd&) = default;
+    ~MutexFd() = default;
 
-    struct Hash {
-      size_t operator()(const Mutex& mtx) const {
-        return std::hash<Fd>()(mtx.mutex_id_);
-      }
-    };
-    bool operator==(const Mutex& rhs) const {
-      return mutex_id_ == rhs.mutex_id_;
-    }
+    bool ready() const override;
+    void submit_read() const override;       // use for unlock
+    void submit_write() const override;      // use for lock
+    bool submit_try_write() const override;  // use for try lock
 
    private:
-    Fd mutex_id_;
+    Mutex mutex_;
+    MutexSelector* selector_;
+
+    MutexFd(size_t uid, Mutex mutex, MutexSelector* selector)
+        : Fd(uid, Fd::Fmutex), mutex_(mutex), selector_(selector) {}
   };
 
   MutexSelector() = default;
-  ~MutexSelector() override = default;
+  MutexSelector(const MutexSelector&) = delete;
+  ~MutexSelector() = default;
 
-  Mutex create_mutex();
-  void destroy_mutex(Mutex& mtx);
-  Fd submit_lock(Mutex& mtx);
-  void submit_unlock(Mutex& mtx);
-  bool submit_try_lock(Mutex& mtx);
+  Generator<const Fd*> select() override;
 
-  Generator<Fd> select() override;
-  bool check_ready(const Fd& fd) override;
+  const Mutex create_mutex();
+  void destroy_mutex(const Mutex& mutex);
+  const MutexFd* create_fd(const Mutex& mutex);
+  const MutexFd* active_fd(const Mutex& mutex);
+  void destroy_fd(const Fd* fd) override;
 
  private:
   std::shared_mutex self_;
-  std::unordered_map<Mutex, std::queue<Fd>, Mutex::Hash> mtx_queue_;
-  std::unordered_map<Fd, Mutex> fd_usings_;
+  std::unordered_map<Mutex, std::queue<MutexFd>> mtx_queue_;
+  std::unordered_set<MutexFd, MutexFd::Hash> fd_usings_;
 };
 
 }  // namespace __detail

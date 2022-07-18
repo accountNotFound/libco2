@@ -79,7 +79,7 @@ void Scheduler::loop_routine_() {
       if (fn_readys_.empty() && !fn_waitings_.empty()) {
         // may cause performance problem
         for (auto& [_, selector] : selectors_) {
-          selector->select().for_each([this](Selector::Fd fd) {
+          selector->select().for_each([this](const Selector::Fd* fd) {
             if (fn_events_.count(fd)) {
               auto pfn = fn_events_.at(fd);
               fn_events_.erase(fd);
@@ -116,31 +116,29 @@ void Scheduler::loop_routine_() {
   DEBUG("thread(%d) end\n", tid);
 }
 
-Scheduler::FdAwaiter Scheduler::create_awaiter(const Selector::Fd& fd) {
-  return FdAwaiter(fd, *this);
+Scheduler::FdAwaiter Scheduler::create_awaiter(const Selector::Fd* fd) {
+  return FdAwaiter(fd, this);
 }
 
 bool Scheduler::FdAwaiter::await_ready() {
-  scheduler_.self_.lock();
-  await_ready_ = scheduler_.selectors_.at(fd_.type())->check_ready(fd_);
-  return await_ready_;
+  scheduler_->self_.lock();
+  return fd_->ready();
 }
 
 void Scheduler::FdAwaiter::await_suspend(std::coroutine_handle<>) {
   // already locked in await_ready
   Tid tid = std::this_thread::get_id();
-  auto current = scheduler_.fn_currents_.at(tid);
-  scheduler_.fn_events_[fd_] = current;
-  scheduler_.fn_waitings_.insert(current);
-  await_ready_ = false;
-  scheduler_.self_.unlock();
+  auto current = scheduler_->fn_currents_.at(tid);
+  scheduler_->fn_events_[fd_] = current;
+  scheduler_->fn_waitings_.insert(current);
+  suspended_ = true;
+  scheduler_->self_.unlock();
 }
 
 void Scheduler::FdAwaiter::await_resume() {
-  if (await_ready_) {
+  if (!suspended_) {
     // already locked in await_ready
-    await_ready_ = false;
-    scheduler_.self_.unlock();
+    scheduler_->self_.unlock();
   }
   // else: unlock in await_resume
 }

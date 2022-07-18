@@ -20,7 +20,7 @@ class Scheduler {
     friend class Scheduler;
 
    public:
-    FdAwaiter(const Selector::Fd& fd, Scheduler& scheduler)
+    FdAwaiter(const Selector::Fd* fd, Scheduler* scheduler)
         : fd_(fd), scheduler_(scheduler) {}
 
     bool await_ready();
@@ -28,9 +28,9 @@ class Scheduler {
     void await_resume();
 
    private:
-    Selector::Fd fd_;
-    Scheduler& scheduler_;
-    bool await_ready_ = false;  // used for scheduler unlock in awaiter
+    const Selector::Fd* fd_;
+    Scheduler* scheduler_;
+    bool suspended_ = false;
   };
 
   static Scheduler* this_scheduler();
@@ -40,7 +40,7 @@ class Scheduler {
 
   void submit_async(std::shared_ptr<Async>&& pfn);
   void event_loop(size_t thread_num = 1);
-  FdAwaiter create_awaiter(const Selector::Fd& fd);
+  FdAwaiter create_awaiter(const Selector::Fd* fd);
   Selector* selector(Selector::Fd::Ftype type);
 
  private:
@@ -54,7 +54,7 @@ class Scheduler {
   std::unordered_map<Tid, Pasync> fn_currents_;
   std::queue<Pasync> fn_readys_;
   std::unordered_set<Pasync> fn_waitings_;
-  std::unordered_map<Selector::Fd, Pasync> fn_events_;
+  std::unordered_map<const Selector::Fd*, Pasync> fn_events_;
   std::unordered_map<Selector::Fd::Ftype, Selector*> selectors_;
 
   void loop_routine_();

@@ -18,7 +18,7 @@ class Mutex {
  private:
   __detail::MutexSelector::Mutex mtx_;
 
-  __detail::MutexSelector& selector_();
+  __detail::MutexSelector* selector_();
 };
 
 }  // namespace co

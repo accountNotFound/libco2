@@ -8,23 +8,13 @@
 
 #include "util/random.hpp"
 
-// #define __DEBUG_PRINT__
-
-#ifdef __DEBUG_PRINT__
-#ifndef DEBUB
-#define DEBUG(format, ...) printf(format, __VA_ARGS__)
-#endif
-#else
-#define DEBUG
-#endif
-
 namespace co {
 
 namespace __detail {
 
-MutexSelector::Mutex MutexSelector::create_mutex() {
+const MutexSelector::Mutex MutexSelector::create_mutex() {
   while (true) {
-    Mutex mtx(create_fd_(random(), Fd::Fdefault));
+    Mutex mtx = random();
     std::unique_lock lock(self_);
     if (!mtx_queue_.count(mtx)) {
       mtx_queue_[mtx] = {};
@@ -33,72 +23,69 @@ MutexSelector::Mutex MutexSelector::create_mutex() {
   }
 }
 
-void MutexSelector::destroy_mutex(Mutex& mtx) {
+void MutexSelector::destroy_mutex(const Mutex& mtx) {
   std::unique_lock lock(self_);
   mtx_queue_.erase(mtx);
 }
 
-Selector::Fd MutexSelector::submit_lock(Mutex& mtx) {
+const MutexSelector::MutexFd* MutexSelector::create_fd(const Mutex& mtx) {
+  MutexFd mutexfd(0, mtx, this);
   while (true) {
-    Fd fd = create_fd_(random(), Fd::Fmutex);
+    mutexfd.uid_ = random();
     std::unique_lock lock(self_);
-    if (!fd_usings_.count(fd)) {
-      fd_usings_[fd] = mtx;
-      mtx_queue_[mtx].push(fd);
-      DEBUG("thread(%d) submit lock fd(%d)\n", std::this_thread::get_id(),
-            fd.hash());
-      return fd;
+    if (!fd_usings_.count(mutexfd)) {
+      fd_usings_.insert(mutexfd);
+      return &*fd_usings_.find(mutexfd);
     }
   }
 }
 
-void MutexSelector::submit_unlock(Mutex& mtx) {
-  std::unique_lock lock(self_);
-  auto fd = mtx_queue_.at(mtx).front();
-  fd_usings_.erase(fd);
-  mtx_queue_.at(mtx).pop();
-  DEBUG("thread(%d) submit unlock fd(%d)\n", std::this_thread::get_id(),
-        fd.hash());
+const MutexSelector::MutexFd* MutexSelector::active_fd(const Mutex& mtx) {
+  std::shared_lock lock(self_);
+  auto mutexfd = mtx_queue_.at(mtx).front();
+  return &*fd_usings_.find(mutexfd);
 }
 
-bool MutexSelector::submit_try_lock(Mutex& mtx) {
-  while (true) {
-    Fd fd = create_fd_(random(), Fd::Fmutex);
-    std::unique_lock lock(self_);
-    if (!fd_usings_.count(fd)) {
-      if (mtx_queue_[mtx].empty()) {
-        fd_usings_[fd] = mtx;
-        mtx_queue_[mtx].push(fd);
-        return true;
-      } else {
-        return false;
-      }
-    }
-  }
+void MutexSelector::destroy_fd(const Fd* fd) {
+  std::unique_lock lock(self_);
+  auto mutexfd = dynamic_cast<const MutexFd*>(fd);
+  fd_usings_.erase(*mutexfd);
 }
 
-Generator<Selector::Fd> MutexSelector::select() {
-  int yield_cnt = 1;
-  std::unique_lock lock(self_);
+Generator<const Selector::Fd*> MutexSelector::select() {
+  std::shared_lock lock(self_);
   for (auto& [_, que] : mtx_queue_) {
     if (!que.empty()) {
-      Fd fd = que.front();
+      MutexFd mutexfd = que.front();
       lock.unlock();
-      DEBUG("thread(%d) yield %dth fd(%d)\n", std::this_thread::get_id(),
-            yield_cnt, fd.hash());
-      co_yield fd;
-      yield_cnt++;
+      co_yield &*fd_usings_.find(mutexfd);
       lock.lock();
     }
   }
 }
 
-bool MutexSelector::check_ready(const Fd& fd) {
-  DEBUG("thread(%d) check fd(%d)\n", std::this_thread::get_id(), fd.hash());
-  std::shared_lock lock(self_);
-  if (!fd_usings_.count(fd)) throw std::out_of_range("invalid lock fd");
-  Mutex& mtx = fd_usings_.at(fd);
-  return mtx_queue_.at(mtx).front() == fd;
+bool MutexSelector::MutexFd::ready() const {
+  std::shared_lock lock(selector_->self_);
+  return selector_->mtx_queue_.at(mutex_).front() == *this;
+}
+
+void MutexSelector::MutexFd::submit_write() const {
+  std::unique_lock lock(selector_->self_);
+  selector_->mtx_queue_.at(mutex_).push(*this);
+}
+
+bool MutexSelector::MutexFd::submit_try_write() const {
+  std::unique_lock lock(selector_->self_);
+  if (selector_->mtx_queue_.at(mutex_).empty()) {
+    selector_->mtx_queue_.at(mutex_).push(*this);
+    return true;
+  }
+  return false;
+}
+
+void MutexSelector::MutexFd::submit_read() const {
+  std::unique_lock lock(selector_->self_);
+  selector_->mtx_queue_.at(mutex_).pop();
 }
 
 }  // namespace __detail

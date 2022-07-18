@@ -8,45 +8,45 @@ namespace co {
 
 namespace __detail {
 
-TimerSelector::Timer TimerSelector::create_timer(
-    unsigned long long milisecond) {
+const TimerSelector::TimedFd* TimerSelector::create_fd(
+    unsigned long long miliseconds) {
+  TimedFd timefd(0, std::clock() + miliseconds, this);
   while (true) {
-    auto fd = create_fd_(random(), Fd::Ftimer);
+    timefd.uid_ = random();
     std::unique_lock lock(self_);
-    if (!fd_status_.count(fd)) {
-      fd_status_[fd] = Fd::Fwaiting;
-      return Timer(fd, std::clock() + milisecond);
+    if (!fd_status_.count(timefd)) {
+      fd_status_[timefd] = TimedFd::Waiting;
+      return &fd_status_.find(timefd)->first;
     }
   }
 }
 
-Selector::Fd TimerSelector::submit_sleep(const Timer& timer) {
+void TimerSelector::destroy_fd(const Fd* fd) {
   std::unique_lock lock(self_);
-  expired_queue_.emplace(timer);
-  return timer.fd_;
+  fd_status_.erase(*dynamic_cast<const TimedFd*>(fd));
 }
 
-void TimerSelector::destroy_timer(TimerSelector::Timer& timer) {
-  std::unique_lock lock(self_);
-  fd_status_.erase(timer.fd_);
-}
-
-Generator<Selector::Fd> TimerSelector::select() {
+Generator<const Selector::Fd*> TimerSelector::select() {
   std::unique_lock lock(self_);
   while (!expired_queue_.empty() &&
          std::clock() >= expired_queue_.top().expired_time_) {
-    auto fd = expired_queue_.top().fd_;
+    TimedFd timefd = expired_queue_.top();
     expired_queue_.pop();
-    fd_status_[fd] = Fd::Fready;
+    fd_status_[timefd] = TimedFd::Ready;
     lock.unlock();
-    co_yield fd;
+    co_yield &fd_status_.find(timefd)->first;
     lock.lock();
   }
 }
 
-bool TimerSelector::check_ready(const Fd& fd) {
-  std::shared_lock lock(self_);
-  return fd_status_.at(fd) == Fd::Fready;
+bool TimerSelector::TimedFd::ready() const {
+  std::shared_lock lock(selector_->self_);
+  return selector_->fd_status_[*this] == TimedFd::Ready;
+}
+
+void TimerSelector::TimedFd::submit_read() const {
+  std::unique_lock lock(selector_->self_);
+  selector_->expired_queue_.push(*this);
 }
 
 }  // namespace __detail

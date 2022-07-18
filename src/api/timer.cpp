@@ -1,15 +1,18 @@
 #include "api/timer.hpp"
 
+#include "schedule/scheduler.hpp"
+#include "select/timer.hpp"
+
 namespace co {
 
-Asyncf<void> sleep(unsigned long long milisecond) {
-  auto scheduler = co::this_scheduler();
-  auto time_selector = dynamic_cast<__detail::TimerSelector*>(
+Asyncf<void> sleep(unsigned long long milliseconds) {
+  auto scheduler = this_scheduler();
+  auto selector = dynamic_cast<__detail::TimerSelector*>(
       scheduler->selector(__detail::Selector::Fd::Ftimer));
-  auto timer = time_selector->create_timer(milisecond);
-  auto fd = time_selector->submit_sleep(timer);
-  co_await scheduler->create_awaiter(fd);
-  time_selector->destroy_timer(timer);
+  auto fd = selector->create_fd(milliseconds);
+  fd->submit_read();
+  co_await this_scheduler()->create_awaiter(fd);
+  selector->destroy_fd(fd);
 }
 
 }  // namespace co
